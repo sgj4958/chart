@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>메인 페이지</title>
+
+    <style>
+        /* * {
+            all: unset;
+        } */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            list-style: none;
+        }
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            padding: 50px;
+            gap: 10px;
+        }
+
+        canvas {
+            border: 1px solid #eee;
+        }
+    </style>
+</head>
+<body id="body">
+    <canvas id="canvas" width="1000" height="500"></canvas>
+</body>
+<script>
+    const chart = (canvasId, data, option) => {
+        const optionDefault = {
+            type: "bar",
+            xAxisArray: [],
+            yAxis: {
+                min: 0,
+                max: 0,
+                step: 0,
+                length: 10
+            },
+            graphColorArray: ["#87cefa99"],
+            graphWidth: 10,
+            beginAtZero: true,
+        }
+        option = {
+            ...optionDefault,
+            ...option
+        }
+
+        // const id = `customId_No${Math.floor(Math.random() * 10e5)}`
+        document.head.insertAdjacentHTML("beforeend", `<style>
+        </style>`)
+        document.body.insertAdjacentHTML("afterbegin", `
+        `)
+
+        // const customWrap = document.querySelector("body")
+        // const modalCustom = customWrap.querySelector(`#${id}`)
+
+        const canvas = document.getElementById(canvasId)
+        if(!canvas.getContext) return
+
+        const ctx = canvas.getContext("2d", {alpha: false})
+        const width = canvas.clientWidth
+        const height = canvas.clientHeight
+        ctx.fillStyle = "#fff"
+        ctx.fillRect(0, 0, width, height)
+
+        const type = option.type
+        const yMin = option.beginAtZero ? 0 : (option.yAxis.min || Math.min(...data))
+        const yMax = option.yAxis.max || Math.max(...data)
+        // const lineNumber = yMax - yMin / option.yAxis.step
+        const lineNumber = {
+            x: option.xAxisArray?.length || data.length, 
+            y: option.yAxis.length || Math.ceil(((option.yAxis.max || Math.max(...data)) - (option.beginAtZero ? 0 : (option.yAxis.min || Math.min(...data)))) / option.yAxis.step)
+        }
+        const axisUnit = {
+            x: option.xAxisArray, 
+            y: option.yAxis.step || Math.ceil((yMax - yMin) / option.yAxis.length)
+        }
+        const graphWidth = option.graphWidth
+        const padding = 50
+        const labelMargin = {x: 10, y: 15}
+
+        // ctx.beginPath()
+        // ctx.moveTo(25, 25)
+        // ctx.lineTo(105, 25)
+        // ctx.lineTo(25, 105)
+        // ctx.fill()
+
+        // ctx.beginPath()
+        // ctx.moveTo(125, 125)
+        // ctx.lineTo(125, 45)
+        // ctx.lineTo(45, 125)
+        // ctx.closePath()
+        // ctx.stroke()
+        ctx.save()
+        ctx.fillStyle = "#ccc"
+        ctx.strokeStyle = "#ccc"
+
+        // y축 그리기
+        ctx.textAlign = "end"
+        for(let i = 0; i < lineNumber.y + 1; i++) {
+            const y = height - padding - (height - padding * 2) / lineNumber.y * i
+            ctx.fillText((i * axisUnit.y).toLocaleString(), padding, y + 3, 25)
+            ctx.stroke(new Path2D(`M${padding + labelMargin.x} ${y + 0.5} h ${width - padding * 2} Z`))
+        }
+        // x축 선 그리기
+        for(let i = 0; i < lineNumber.x + 1; i++) {
+            const xAxisWidth = (width - padding * 2) / lineNumber.x
+            const x = padding + xAxisWidth * i
+            ctx.stroke(new Path2D(`M${x + labelMargin.x + 0.5} ${height - padding} v -${height - padding * 2} Z`))
+        }
+        ctx.textAlign = "center"
+        const xAxisWidth = (width - padding * 2) / lineNumber.x
+        // x축 텍스트 그리기
+        for(let i = 0; i < lineNumber.x; i++) {
+            const x = padding + xAxisWidth * i
+            axisUnit.x.length && ctx.fillText(`${axisUnit.x[i]}`.toLocaleString(), x + labelMargin.x + xAxisWidth / 2, height - padding + labelMargin.y, 25)
+        }
+        // 그래프 그리기
+        for(let i = 0; i < lineNumber.x; i++) {
+            const x = padding + xAxisWidth * i
+            // const value = data[i] / yMax * (height - padding * 2)
+            const value = data[i] / (axisUnit.y * lineNumber.y) * (height - padding * 2)
+            ctx.fillStyle = option.graphColorArray[i] || option.graphColorArray
+            ctx.fill(new Path2D(`M${x + labelMargin.x - graphWidth / 2 + xAxisWidth / 2 + 0.5} ${height - padding} h ${graphWidth} v -${value} h -${graphWidth} Z`))
+        }
+    }
+
+    chart("canvas", [11, 30, 25, 67, 50, 76, 90, 123, 80, 30, 55, 90], {xAxisArray: ["1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"]})
+</script>
+</html>
