@@ -92,6 +92,11 @@
         const xAxisWidth = graphAreaWidth / lineNumber.x
         const getValue = (i = 0) => data[i] / (axisUnit.y * lineNumber.y) * graphAreaHeight
 
+        const transition = 3
+        const transitionSpeed = 0.1
+        let nowTransition = 0
+        const getTransitionPercent = () => nowTransition / transition
+
         const drawGraph = () => {
 
         ctx.fillStyle = "#fff"
@@ -121,9 +126,13 @@
         for(let i = 0; i < lineNumber.x; i++) {
             const x = padding + xAxisWidth * i
             ctx.fillStyle = option.graphColorArray[i] || option.graphColorArray
-            ctx.fill(new Path2D(`M${x + labelMargin.x - graphWidth / 2 + xAxisWidth / 2 + 0.5} ${height - padding} h ${graphWidth} v -${getValue(i)} h -${graphWidth} Z`))
+            ctx.fill(new Path2D(`M${x + labelMargin.x - graphWidth / 2 + xAxisWidth / 2 + 0.5} ${height - padding} h ${graphWidth} v -${getValue(i) * getTransitionPercent()} h -${graphWidth} Z`))
         }
-        
+
+            if(transition > nowTransition) {
+                nowTransition += transitionSpeed
+                requestAnimationFrame(drawGraph)
+            }
         }
         drawGraph()
         
@@ -173,30 +182,76 @@
             drawGraph()
         }
 
+        // const beforTooTipPosition = {x: padding + labelMargin.x, y: padding + height}
+        let beforeToolTipValue
+        const toolTipTransition = 100
+        const toolTipTransitionSpeed = 1
+        let nowToolTipTransition = 0
+        const getToolTipTransitionPercent = () => 1 - nowToolTipTransition / toolTipTransition
+        let beforeMouseX
+
+        canvas.addEventListener("mouseenter", event => beforeMouseX = event.x)
         canvas.addEventListener("mousemove", event => {
             const x = event.x - canvas.getBoundingClientRect().x
             const y = event.y - canvas.getBoundingClientRect().y
             for(let i = 0; i < lineNumber.x; i++) {
                 const now = padding + labelMargin.x + xAxisWidth * i + xAxisWidth / 2
                 if((x > now - xAxisWidth / 2) && (now + xAxisWidth / 2 > x)) {
-                    reset()
-                    const text = `${option.xAxisArray[i] ? option.xAxisArray[i] + " :" : ""} ${data[i]}`
-                    const measureText = ctx.measureText(text)
+
+                    // reset()
+                    // const text = `${option.xAxisArray[i] ? option.xAxisArray[i] + " :" : ""} ${data[i]}`
+                    // const measureText = ctx.measureText(text)
                     
-                    const toolTipPadding = 30
-                    const toolTipWidth = measureText.width + toolTipPadding
-                    const toolTipHeight = 30
-                    const toolTipX = now - toolTipWidth / 2
-                    const toolTipY = height - padding - getValue(i) - toolTipHeight - 5
-                    drawToolTipIcon(toolTipX, toolTipY, toolTipWidth, toolTipHeight, 10)
+                    // const toolTipPadding = 30
+                    // const toolTipWidth = measureText.width + toolTipPadding * 2
+                    // const toolTipHeight = 30
+                    // const toolTipX = now - toolTipWidth / 2
+                    // const toolTipY = height - padding - getValue(i) - toolTipHeight - 5
+                    // drawToolTipIcon(toolTipX, toolTipY, toolTipWidth, toolTipHeight, 10)
 
-                    ctx.font = "14px sans-serif"
-                    ctx.textAlign = "center"
-                    ctx.textBaseline = "middle"
-                    ctx.fillStyle = "#fff"
-                    ctx.fillText(text, toolTipX + toolTipWidth / 2, toolTipY + toolTipHeight / 2, toolTipWidth)
+                    // ctx.font = "14px sans-serif"
+                    // ctx.textAlign = "center"
+                    // ctx.textBaseline = "middle"
+                    // ctx.fillStyle = "#fff"
+                    // ctx.fillText(text, toolTipX + toolTipWidth / 2, toolTipY + toolTipHeight / 2, toolTipWidth)
 
-                    return
+                    const direction = 0 > beforeMouseX - event.x 
+
+                    const showToolTip = () => {
+                        reset()
+                        const text = `${option.xAxisArray[i] ? option.xAxisArray[i] + " :" : ""} ${data[i]}`
+                        const measureText = ctx.measureText(text)
+                        
+                        const toolTipPadding = 30
+                        const toolTipWidth = measureText.width + toolTipPadding * 2
+                        const toolTipHeight = 30
+                        // const toolTipX = -xAxisWidth * getToolTipTransitionPercent() + now - toolTipWidth / 2
+                        // const toolTipY = (getValue(i) - (getValue(i-1) || 0)) * getToolTipTransitionPercent() + height - padding - getValue(i) - toolTipHeight - 5
+                        const toolTipX = (direction ? -1 : 1) * xAxisWidth * getToolTipTransitionPercent() + now - toolTipWidth / 2
+                        const toolTipY = (getValue(i) - (getValue(direction ? i - 1 : i + 1) || 0)) * getToolTipTransitionPercent() + height - padding - getValue(i) - toolTipHeight - 5
+                        drawToolTipIcon(toolTipX, toolTipY, toolTipWidth, toolTipHeight, 10)
+
+                        ctx.font = "14px sans-serif"
+                        ctx.textAlign = "center"
+                        ctx.textBaseline = "middle"
+                        ctx.fillStyle = "#fff"
+                        ctx.fillText(text, toolTipX + toolTipWidth / 2, toolTipY + toolTipHeight / 2, toolTipWidth)
+                        
+                        if(toolTipTransition > nowToolTipTransition) {
+                            nowToolTipTransition += toolTipTransitionSpeed
+                            requestAnimationFrame(showToolTip)
+                        }
+                    }
+                    
+                    if(beforeToolTipValue != data[i]) {
+                        beforeMouseX = event.x
+
+                        // beforTooTipPosition.x = i
+                        // beforTooTipPosition.y = getValue(i)
+                        beforeToolTipValue = data[i]
+                        nowToolTipTransition = 0
+                    }
+                    return showToolTip()
                 }
             }
             reset()
