@@ -65,58 +65,53 @@
         if(!canvas.getContext) return
 
         const ctx = canvas.getContext("2d", {alpha: false})
-        const width = canvas.clientWidth
-        const height = canvas.clientHeight
-        ctx.fillStyle = "#fff"
-        ctx.fillRect(0, 0, width, height)
+        const width = canvas.getBoundingClientRect().width
+        const height = canvas.getBoundingClientRect().height
 
         const type = option.type
         const yMin = option.beginAtZero ? 0 : (option.yAxis.min || Math.min(...data))
         const yMax = option.yAxis.max || Math.max(...data)
-        // const lineNumber = yMax - yMin / option.yAxis.step
-        const lineNumber = {
-            x: option.xAxisArray?.length || data.length, 
-            y: option.yAxis.length || Math.ceil(((option.yAxis.max || Math.max(...data)) - (option.beginAtZero ? 0 : (option.yAxis.min || Math.min(...data)))) / option.yAxis.step)
-        }
+        const yMaxCeil = Math.ceil(yMax / 10) * 10
+        const interval = yMax - yMin
+
+        const getAxisUnit = i => yMaxCeil / i > 10 ? getAxisUnit(i + 5) : i
         const axisUnit = {
             x: option.xAxisArray, 
-            y: option.yAxis.step || Math.ceil((yMax - yMin) / option.yAxis.length)
+            y: option.yAxis.step || getAxisUnit(5)
+        }
+        const lineNumber = {
+            x: option.xAxisArray?.length || data.length, 
+            y: option.yAxis.length || (yMaxCeil / axisUnit.y)
         }
         const graphWidth = option.graphWidth
         const padding = 50
         const labelMargin = {x: 10, y: 15}
+        
+        const graphAreaWidth = width - padding * 2
+        const graphAreaHeight = height - padding * 2
+        const xAxisWidth = graphAreaWidth / lineNumber.x
+        const getValue = (i = 0) => data[i] / (axisUnit.y * lineNumber.y) * graphAreaHeight
 
-        // ctx.beginPath()
-        // ctx.moveTo(25, 25)
-        // ctx.lineTo(105, 25)
-        // ctx.lineTo(25, 105)
-        // ctx.fill()
+        const drawGraph = () => {
 
-        // ctx.beginPath()
-        // ctx.moveTo(125, 125)
-        // ctx.lineTo(125, 45)
-        // ctx.lineTo(45, 125)
-        // ctx.closePath()
-        // ctx.stroke()
-        ctx.save()
-        ctx.fillStyle = "#ccc"
-        ctx.strokeStyle = "#ccc"
+        ctx.fillStyle = "#fff"
+        ctx.fillRect(0, 0, width, height)
+        ctx.fillStyle = "#aaa"
+        ctx.strokeStyle = "#eee"
 
         // y축 그리기
         ctx.textAlign = "end"
         for(let i = 0; i < lineNumber.y + 1; i++) {
-            const y = height - padding - (height - padding * 2) / lineNumber.y * i
+            const y = height - padding - graphAreaHeight / lineNumber.y * i
             ctx.fillText((i * axisUnit.y).toLocaleString(), padding, y + 3, 25)
-            ctx.stroke(new Path2D(`M${padding + labelMargin.x} ${y + 0.5} h ${width - padding * 2} Z`))
+            ctx.stroke(new Path2D(`M${padding + labelMargin.x} ${y + 0.5} h ${graphAreaWidth} Z`))
         }
         // x축 선 그리기
         for(let i = 0; i < lineNumber.x + 1; i++) {
-            const xAxisWidth = (width - padding * 2) / lineNumber.x
             const x = padding + xAxisWidth * i
-            ctx.stroke(new Path2D(`M${x + labelMargin.x + 0.5} ${height - padding} v -${height - padding * 2} Z`))
+            ctx.stroke(new Path2D(`M${x + labelMargin.x + 0.5} ${height - padding} v -${graphAreaHeight} Z`))
         }
         ctx.textAlign = "center"
-        const xAxisWidth = (width - padding * 2) / lineNumber.x
         // x축 텍스트 그리기
         for(let i = 0; i < lineNumber.x; i++) {
             const x = padding + xAxisWidth * i
@@ -125,11 +120,87 @@
         // 그래프 그리기
         for(let i = 0; i < lineNumber.x; i++) {
             const x = padding + xAxisWidth * i
-            // const value = data[i] / yMax * (height - padding * 2)
-            const value = data[i] / (axisUnit.y * lineNumber.y) * (height - padding * 2)
             ctx.fillStyle = option.graphColorArray[i] || option.graphColorArray
-            ctx.fill(new Path2D(`M${x + labelMargin.x - graphWidth / 2 + xAxisWidth / 2 + 0.5} ${height - padding} h ${graphWidth} v -${value} h -${graphWidth} Z`))
+            ctx.fill(new Path2D(`M${x + labelMargin.x - graphWidth / 2 + xAxisWidth / 2 + 0.5} ${height - padding} h ${graphWidth} v -${getValue(i)} h -${graphWidth} Z`))
         }
+        
+        }
+        drawGraph()
+        
+        const drawToolTipIcon = (x, y, width, height, radius) => {
+            ctx.fillStyle = "#555"
+            // ctx.beginPath();
+            // ctx.moveTo(x, y + radius);
+            // ctx.lineTo(x, y + height - radius);
+            // ctx.arcTo(x, y + height, x + radius, y + height, radius);
+
+            // ctx.lineTo(x + width / 2 - 5, y + height);
+            // ctx.lineTo(x + width / 2 , y + height + 5);
+            // ctx.lineTo(x + width / 2 + 5, y + height);
+            // ctx.lineTo(x + width - radius, y + height);
+
+            // ctx.arcTo(x + width, y + height, x + width, y + height - radius, radius);
+            // ctx.lineTo(x + width, y + radius);
+            // ctx.arcTo(x + width, y, x + width - radius, y, radius);
+            // ctx.lineTo(x + radius, y);
+            // ctx.arcTo(x, y, x, y + radius, radius);
+            // // ctx.stroke();
+            // ctx.fill()
+
+            ctx.moveTo(x + radius, y)
+
+            ctx.lineTo(x + width - radius, y)
+            ctx.arcTo(x + width, y, x + width, y + radius, radius)
+            ctx.lineTo(x + width, y + height - radius)
+
+            ctx.arcTo(x + width, y + height, x + width - radius, y + height, radius)
+
+            ctx.lineTo(x + width / 2 + 5, y + height)
+            ctx.lineTo(x + width / 2, y + height + 5)
+            ctx.lineTo(x + width / 2 - 5, y + height)
+
+            ctx.lineTo(x + radius, y + height)
+
+            ctx.arcTo(x, y + height, x, y + height - radius, radius)
+            ctx.lineTo(x, y + radius)
+
+            ctx.arcTo(x, y, x + radius, y, radius)
+            ctx.fill()
+        }
+
+        const reset = () => {
+            ctx.reset()
+            drawGraph()
+        }
+
+        canvas.addEventListener("mousemove", event => {
+            const x = event.x - canvas.getBoundingClientRect().x
+            const y = event.y - canvas.getBoundingClientRect().y
+            for(let i = 0; i < lineNumber.x; i++) {
+                const now = padding + labelMargin.x + xAxisWidth * i + xAxisWidth / 2
+                if((x > now - xAxisWidth / 2) && (now + xAxisWidth / 2 > x)) {
+                    reset()
+                    const text = `${option.xAxisArray[i] ? option.xAxisArray[i] + " :" : ""} ${data[i]}`
+                    const measureText = ctx.measureText(text)
+                    
+                    const toolTipPadding = 30
+                    const toolTipWidth = measureText.width + toolTipPadding
+                    const toolTipHeight = 30
+                    const toolTipX = now - toolTipWidth / 2
+                    const toolTipY = height - padding - getValue(i) - toolTipHeight - 5
+                    drawToolTipIcon(toolTipX, toolTipY, toolTipWidth, toolTipHeight, 10)
+
+                    ctx.font = "14px sans-serif"
+                    ctx.textAlign = "center"
+                    ctx.textBaseline = "middle"
+                    ctx.fillStyle = "#fff"
+                    ctx.fillText(text, toolTipX + toolTipWidth / 2, toolTipY + toolTipHeight / 2, toolTipWidth)
+
+                    return
+                }
+            }
+            reset()
+        })
     }
 
     chart("canvas", [11, 30, 25, 67, 50, 76, 90, 123, 80, 30, 55, 90], {xAxisArray: ["1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"]})
