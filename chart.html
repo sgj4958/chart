@@ -33,9 +33,10 @@
     <canvas id="canvas" width="1000" height="500"></canvas>
 </body>
 <script>
-    const chart = (canvasId, data, option) => {
+    const chart = (canvasId, option, ...args) => {
         const optionDefault = {
             type: "bar",
+            data: [],
             xAxisArray: [],
             yAxis: {
                 min: 0,
@@ -46,11 +47,17 @@
             graphColorArray: ["#87cefa99"],
             graphWidth: 10,
             beginAtZero: true,
+            mergeAxis: true,
         }
         option = {
             ...optionDefault,
             ...option
         }
+
+        args.length && (args = args.map(option => ({
+            ...optionDefault,
+            ...option
+        })))
 
         // const id = `customId_No${Math.floor(Math.random() * 10e5)}`
         document.head.insertAdjacentHTML("beforeend", `<style>
@@ -61,6 +68,9 @@
         // const customWrap = document.querySelector("body")
         // const modalCustom = customWrap.querySelector(`#${id}`)
 
+        const data = option.data
+        const mergeOption = [option].concat(args)
+        const mergeData = mergeOption.filter(e => e.mergeAxis).map(e => e.data).flat()
         const canvas = document.getElementById(canvasId)
         if(!canvas.getContext) return
 
@@ -69,8 +79,8 @@
         const height = canvas.getBoundingClientRect().height
 
         const type = option.type
-        const yMin = option.beginAtZero ? 0 : (option.yAxis.min || Math.min(...data))
-        const yMax = option.yAxis.max || Math.max(...data)
+        const yMin = option.beginAtZero ? 0 : (args.length ? Math.min(...mergeData) : (option.yAxis.min || Math.min(...data)))
+        const yMax = args.length ? Math.max(...mergeData) : (option.yAxis.max || Math.max(...data))
         const yMaxCeil = Math.ceil(yMax / 10) * 10
         const interval = yMax - yMin
 
@@ -90,7 +100,9 @@
         const graphAreaWidth = width - padding * 2
         const graphAreaHeight = height - padding * 2
         const xAxisWidth = graphAreaWidth / lineNumber.x
-        const getValue = (i = 0) => data[i] / (axisUnit.y * lineNumber.y) * graphAreaHeight
+        const getValueHeight = value => value / (axisUnit.y * lineNumber.y) * graphAreaHeight
+        const getValue = (i, args = data) => getValueHeight(args[i] || 0)
+        const getValueBetween = (i, args = data) => getValueHeight((args[i - 1] || 0) - args[i])
 
         const transition = 3
         const transitionSpeed = 0.1
@@ -122,11 +134,39 @@
             const x = padding + xAxisWidth * i
             axisUnit.x.length && ctx.fillText(`${axisUnit.x[i]}`.toLocaleString(), x + labelMargin.x + xAxisWidth / 2, height - padding + labelMargin.y, 25)
         }
+
+        const mergeBarGraph = mergeOption.filter(e => !e.type || e.type.toLowerCase() == "bar")
+        const mergeLineGraph = mergeOption.filter(e => e.type.toLowerCase() == "line")
+
         // 그래프 그리기
-        for(let i = 0; i < lineNumber.x; i++) {
-            const x = padding + xAxisWidth * i
-            ctx.fillStyle = option.graphColorArray[i] || option.graphColorArray
-            ctx.fill(new Path2D(`M${x + labelMargin.x - graphWidth / 2 + xAxisWidth / 2 + 0.5} ${height - padding} h ${graphWidth} v -${getValue(i) * getTransitionPercent()} h -${graphWidth} Z`))
+        for(let j = 0; j < mergeBarGraph.length; j++) {
+            const option = mergeBarGraph[j]
+            const multiGraphCorrection = mergeBarGraph.length > 1 ? graphWidth * j + 5 * j - xAxisWidth / 2 + xAxisWidth / mergeBarGraph.length - mergeBarGraph.length : 0
+
+            for(let i = 0; i < lineNumber.x; i++) {
+                ctx.fillStyle = option.graphColorArray[i] || option.graphColorArray
+                ctx.fill(new Path2D(`M${padding + xAxisWidth * i + labelMargin.x - graphWidth / 2 + xAxisWidth / 2 + 0.5 + multiGraphCorrection} ${height - padding} h ${graphWidth} v -${getValue(i, option.data) * getTransitionPercent()} h -${graphWidth} Z`))
+            }
+        }
+
+        for(let j = 0; j < mergeLineGraph.length; j++) {
+            const option = mergeLineGraph[j]
+            for(let i = 0; i < lineNumber.x; i++) {
+                ctx.fillStyle = ctx.strokeStyle = option.graphColorArray[i] || option.graphColorArray
+                ctx.fill(new Path2D(`
+                    M ${padding + xAxisWidth * i + labelMargin.x + xAxisWidth / 2 + 0.5 - 3} ${height - padding - getValue(i, option.data) * getTransitionPercent()} 
+                    a 3 3 0 1 1 0 0.001
+                Z`))
+                    // ctx.beginPath()
+                    // ctx.moveTo(padding + xAxisWidth * (i - 1) + labelMargin.x + xAxisWidth / 2 + 0.5, height - padding - getValue(i - 1) * getTransitionPercent())
+                    // ctx.lineTo(padding + xAxisWidth * i + labelMargin.x + xAxisWidth / 2 + 0.5, height - padding - getValue(i) * getTransitionPercent())
+                    // ctx.stroke()
+                if(i)
+                ctx.stroke(new Path2D(`
+                    M ${padding + xAxisWidth * (i - 1) + labelMargin.x + xAxisWidth / 2 + 0.5} ${height - padding - getValue(i - 1, option.data) * getTransitionPercent()}
+                    l ${i ? xAxisWidth : 0} ${getValueBetween(i, option.data) * getTransitionPercent()}
+                `))
+            }
         }
 
             if(transition > nowTransition) {
@@ -136,37 +176,28 @@
         }
         drawGraph()
         
-        const drawToolTipIcon = (x, y, width, height, radius) => {
+        const drawToolTipIcon = (x, y, width, height, radius, reverse) => {
+            ctx.beginPath()
             ctx.fillStyle = "#555"
-            // ctx.beginPath();
-            // ctx.moveTo(x, y + radius);
-            // ctx.lineTo(x, y + height - radius);
-            // ctx.arcTo(x, y + height, x + radius, y + height, radius);
-
-            // ctx.lineTo(x + width / 2 - 5, y + height);
-            // ctx.lineTo(x + width / 2 , y + height + 5);
-            // ctx.lineTo(x + width / 2 + 5, y + height);
-            // ctx.lineTo(x + width - radius, y + height);
-
-            // ctx.arcTo(x + width, y + height, x + width, y + height - radius, radius);
-            // ctx.lineTo(x + width, y + radius);
-            // ctx.arcTo(x + width, y, x + width - radius, y, radius);
-            // ctx.lineTo(x + radius, y);
-            // ctx.arcTo(x, y, x, y + radius, radius);
-            // // ctx.stroke();
-            // ctx.fill()
 
             ctx.moveTo(x + radius, y)
 
+            if(reverse) {
+                ctx.lineTo(x + width / 2 - 5, y)
+                ctx.lineTo(x + width / 2, y - 5)
+                ctx.lineTo(x + width / 2 + 5, y)
+            }
             ctx.lineTo(x + width - radius, y)
             ctx.arcTo(x + width, y, x + width, y + radius, radius)
             ctx.lineTo(x + width, y + height - radius)
 
             ctx.arcTo(x + width, y + height, x + width - radius, y + height, radius)
 
-            ctx.lineTo(x + width / 2 + 5, y + height)
-            ctx.lineTo(x + width / 2, y + height + 5)
-            ctx.lineTo(x + width / 2 - 5, y + height)
+            if(!reverse) {
+                ctx.lineTo(x + width / 2 + 5, y + height)
+                ctx.lineTo(x + width / 2, y + height + 5)
+                ctx.lineTo(x + width / 2 - 5, y + height)
+            }
 
             ctx.lineTo(x + radius, y + height)
 
@@ -184,20 +215,21 @@
 
         // const beforTooTipPosition = {x: padding + labelMargin.x, y: padding + height}
         let beforeToolTipValue
-        const toolTipTransition = 100
+        const toolTipTransition = 10
         const toolTipTransitionSpeed = 1
         let nowToolTipTransition = 0
         const getToolTipTransitionPercent = () => 1 - nowToolTipTransition / toolTipTransition
         let beforeMouseX
+        let play = false
 
         canvas.addEventListener("mouseenter", event => beforeMouseX = event.x)
         canvas.addEventListener("mousemove", event => {
+            if(play) return
             const x = event.x - canvas.getBoundingClientRect().x
             const y = event.y - canvas.getBoundingClientRect().y
             for(let i = 0; i < lineNumber.x; i++) {
                 const now = padding + labelMargin.x + xAxisWidth * i + xAxisWidth / 2
                 if((x > now - xAxisWidth / 2) && (now + xAxisWidth / 2 > x)) {
-
                     // reset()
                     // const text = `${option.xAxisArray[i] ? option.xAxisArray[i] + " :" : ""} ${data[i]}`
                     // const measureText = ctx.measureText(text)
@@ -219,28 +251,47 @@
 
                     const showToolTip = () => {
                         reset()
-                        const text = `${option.xAxisArray[i] ? option.xAxisArray[i] + " :" : ""} ${data[i]}`
+                        const text = `${option.xAxisArray[i] || " "}`
                         const measureText = ctx.measureText(text)
                         
                         const toolTipPadding = 30
                         const toolTipWidth = measureText.width + toolTipPadding * 2
-                        const toolTipHeight = 30
+                        const toolTipHeight = 40 + mergeOption.length * 20
                         // const toolTipX = -xAxisWidth * getToolTipTransitionPercent() + now - toolTipWidth / 2
                         // const toolTipY = (getValue(i) - (getValue(i-1) || 0)) * getToolTipTransitionPercent() + height - padding - getValue(i) - toolTipHeight - 5
                         const toolTipX = (direction ? -1 : 1) * xAxisWidth * getToolTipTransitionPercent() + now - toolTipWidth / 2
-                        const toolTipY = (getValue(i) - (getValue(direction ? i - 1 : i + 1) || 0)) * getToolTipTransitionPercent() + height - padding - getValue(i) - toolTipHeight - 5
-                        drawToolTipIcon(toolTipX, toolTipY, toolTipWidth, toolTipHeight, 10)
+                        let toolTipY = (getValue(i) - (getValue(direction ? i - 1 : i + 1) || 0)) * getToolTipTransitionPercent() + height - padding - getValue(i) - toolTipHeight - 5
+                        
+                        let reverse = false
+                        if(0 > toolTipY) {
+                            toolTipY += (toolTipHeight + 5 * 2)
+                            reverse = true
+                        }
+                        drawToolTipIcon(toolTipX, toolTipY, toolTipWidth, toolTipHeight, 10, reverse)
+
 
                         ctx.font = "14px sans-serif"
-                        ctx.textAlign = "center"
+                        // ctx.textAlign = "center"
+                        ctx.textAlign = "start"
                         ctx.textBaseline = "middle"
                         ctx.fillStyle = "#fff"
-                        ctx.fillText(text, toolTipX + toolTipWidth / 2, toolTipY + toolTipHeight / 2, toolTipWidth)
+                        // ctx.fillText(text, toolTipX + toolTipWidth / 2, toolTipY + toolTipHeight / 2, toolTipWidth)
+                        ctx.fillText(text, toolTipX + 10, toolTipY + 15, toolTipWidth)
+                        ctx.strokeStyle = "#fff"
+                        ctx.stroke(new Path2D(`M ${toolTipX} ${toolTipY + 30} h ${toolTipWidth}`))
+
+                        mergeOption.forEach((e, j) => {
+                            ctx.fillStyle = e.graphColorArray[j] || e.graphColorArray
+                            ctx.fill(new Path2D(`M ${toolTipX + 10} ${toolTipY + 40 + 20 * j} h 10 v 10 h -10 Z`))
+                            ctx.fillStyle = "#fff"
+                            ctx.fillText(e.data[i], toolTipX + 30, toolTipY + 45 + 20 * j, toolTipWidth)
+                        })
                         
                         if(toolTipTransition > nowToolTipTransition) {
+                            play = true
                             nowToolTipTransition += toolTipTransitionSpeed
                             requestAnimationFrame(showToolTip)
-                        }
+                        } else play = false
                     }
                     
                     if(beforeToolTipValue != data[i]) {
@@ -256,8 +307,41 @@
             }
             reset()
         })
+        
+        // if(Array.isArray(args[0]) && args[0].length) chart(canvasId, args.shift(), args.shift(), ...args)
     }
 
-    chart("canvas", [11, 30, 25, 67, 50, 76, 90, 123, 80, 30, 55, 90], {xAxisArray: ["1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"]})
+    chart("canvas", {
+        data: [11, 30, 25, 67, 50, 76, 90, 123, 80, 30, 55, 90],
+        xAxisArray: ["1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"]
+    },
+    {
+        data: [12, 50, 45, 11, 66, 99, 100, 111, 33, 74, 47, 90],
+        graphColorArray: ["#9c9"]
+    }, 
+    {
+        data: [33, 55, 44, 22, 66, 33, 88, 99, 11, 22, 44, 33],
+        graphColorArray: ["#c99"]
+    },
+    {
+        data: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120],
+        graphColorArray: ["#99c"]
+    },
+    {
+        type: "line",
+        data: [10, 11, 13, 17, 25, 41, 73, 124, 95, 77, 68, 61],
+        graphColorArray: ["#777"]
+    },
+    {
+        type: "line",
+        data: [0, 80, 120, 130, 130, 120, 110, 105, 105, 110, 120, 140],
+        graphColorArray: ["#cc9"]
+    },
+    {
+        type: "line",
+        data: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110],
+        graphColorArray: ["#ccc"]
+    },
+    )
 </script>
 </html>
